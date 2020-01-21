@@ -236,7 +236,7 @@ def plot_spike_for_1_neu(volt, t, i, tstop):
     #fig, ax = pyplot.subplots()
     #ax.plot(t, volt)
     pyplot.plot(t,volt)
-    pyplot.xticks(np.arange(0, tstop+1, 10.0))
+    pyplot.xticks(np.arange(0, tstop+1, 100.0))
     #pyplot.yticks(np.arange(1,15,3))
     #plt.show()
     pyplot.grid()
@@ -266,7 +266,7 @@ def run(tstop):
         if pcid == 0: progress_bar(tstop)
 
         pc.psolve(pc.t(0) + h.dt)
-        if pcid == 0 and int(pc.t(0)) % 10 == 0:
+        if pcid == 0 and int(pc.t(0)) % 100 == 0:
             dist = 0
             dist1 = 1e9
             for nd in k.nodes:
