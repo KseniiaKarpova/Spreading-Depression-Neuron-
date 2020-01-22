@@ -8,11 +8,11 @@ ASSIGNED {
     ina (mA/cm2)
     ena (mV)
     v (mV)
-    minf hinf tauh
+    minf hinf tauh phi
 }
 
 PARAMETER {
-    gnap = 0.4
+    gnap = 3e-08
     taubar = 10000
     thmp = -40
     sigmp = 6
@@ -21,6 +21,11 @@ PARAMETER {
     vt = -49
     sig = 6
     phih = 0.05
+    F = 96485
+    R=8310
+    Temp=310.0
+    nae = 135
+    nai = 2
 }
 
 STATE {
@@ -29,7 +34,7 @@ STATE {
 
 BREAKPOINT {
     SOLVE state METHOD derivimplicit
-    ina = 0.001 * (gnap * minf * hinf * (v - ena))
+    ina = gnap * minf * hinf * (v - ena) * h * F * phi * (ena * exp(-phi-ina))/(exp(-phi-1))
 }
 
 INITIAL {
@@ -40,6 +45,7 @@ PROCEDURE rates(v(mV)) {
     minf = 1. / (1. + exp(-(v - thmp) / sigmp))
     hinf = 1. / (1. + exp(-(v - thhp) / sighp))
     tauh = taubar / cosh((v - vt) / (2 * sig))
+    phi = v / (R*Temp/F)
 }
 
 DERIVATIVE state {

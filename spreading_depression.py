@@ -200,7 +200,7 @@ def plot_rec_neurons():
                             alpha=0.5)
 
                 norm = colors.Normalize(vmin=-70, vmax=80)
-                pyplot.title('Neuron membrane potentials; t = %gms' % (idx * 100))
+                pyplot.title('Neuron membrane potentials; t = %gms' % (idx))
 
 
                 ax1 = fig.add_axes([0.88, 0.05, 0.04, 0.9])
@@ -266,7 +266,7 @@ def run(tstop):
         if pcid == 0: progress_bar(tstop)
 
         pc.psolve(pc.t(0) + h.dt)
-        if pcid == 0 and int(pc.t(0)) % 100 == 0:
+        if pcid == 0 and int(pc.t(0)) % 10 == 0:
             dist = 0
             dist1 = 1e9
             for nd in k.nodes:
