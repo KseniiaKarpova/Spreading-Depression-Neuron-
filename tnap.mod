@@ -1,7 +1,7 @@
 NEURON {
     SUFFIX tnap
     USEION na READ ena WRITE ina
-    RANGE minf, hinf, tauh, ina, gnap
+    RANGE minf, hinf, tauh, ina, gnap, phi
 }
 
 ASSIGNED {
@@ -23,7 +23,7 @@ PARAMETER {
     phih = 0.05
     F = 96485
     R=8310
-    Temp=310.0
+    Temp=0
     nae = 135
     nai = 2
 }
@@ -34,7 +34,7 @@ STATE {
 
 BREAKPOINT {
     SOLVE state METHOD derivimplicit
-    ina = gnap * minf * hinf * (v - ena) * h * F * phi * (ena * exp(-phi-ina))/(exp(-phi-1))
+    ina = 0.0001 * (gnap * minf * h * F * phi * (ena * exp(-phi-ina))/(exp(-phi-1)))
 }
 
 INITIAL {

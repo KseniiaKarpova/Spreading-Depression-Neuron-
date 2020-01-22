@@ -13,7 +13,7 @@ ASSIGNED {
 }
 
 UNITS {
-    FARADAY = (faraday) (kilocoulombs)
+    FARADAY = 96485.309 (coul)
 }
 
 STATE {
