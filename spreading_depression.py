@@ -85,13 +85,23 @@ class Neuron:
 
 
 
-        for mechanism in ['tnak', 'tnap', 'taccumulation3', 'kleak']:
+        for mechanism in ['tnak', 'tnap', 'taccumulation3', 'kleak', 'nakpump']:
             self.soma.insert(mechanism)
+            self.dend.insert(mechanism)
+
+        for mechanism in ['tnak', 'tnap', 'taccumulation3', 'kleak', 'nakpump' , 'nmda']:
             self.dend.insert(mechanism)
 
         #
         self.soma(0.5).tnak.imax = 0
         self.dend(0.5).tnak.imax = 0
+
+        self.soma(0.5).nakpump.km_k = 2
+        self.soma(0.5).nakpump.km_na = 10
+        self.dend(0.5).nakpump.km_k = 2
+        self.dend(0.5).nakpump.km_na = 10
+
+        #self.dend(0.5).nmda.gbar = 0.0001
         #self.soma(0.5).nap.gnabar_nap=0.000125
         #self.dend(0.5).nap.gnabar_nap=1e-6
 
