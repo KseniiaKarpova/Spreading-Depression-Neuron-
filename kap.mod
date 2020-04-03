@@ -1,120 +1,106 @@
 TITLE K-A channel from Klee Ficker and Heinemann
-: modified to account for Dax A Current --- M.Migliore Jun 1997
-: modified to be used with cvode  M.Migliore 2001
-: thread-safe 2010-05-31 Ben Suter
-: 2010-11-07 Ben Suter, removing "ka" from parameter names, reformatting, setting sh = 0 (was 24 mV)
-:
-: :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-: Copyright 2011, Benjamin Suter (for changes only)
-: :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+: modified to account for Dax A Current ----------
+: M.Migliore Jun 1997
+: modified by Poirazi on 10/2/00 according to Hoffman_etal97 
+: to account for I_A proximal (<100microns)
+: (n) activation, (l) inactivation
 
 
 UNITS {
-    (mA) = (milliamp)
-    (mV) = (millivolt)
+	(mA) = (milliamp)
+	(mV) = (millivolt)
 }
+
+INDEPENDENT {t FROM 0 TO 1 WITH 1 (ms)}
 
 PARAMETER {
-    v                   (mV)
-    celsius             (degC)
-    ek
-
-    sh      = 0
-    gbar    = 0.008     (mho/cm2)
-    vhalfn  = 11        (mV)
-    vhalfl  = -56       (mV)
-    a0l     = 0.05      (/ms)
-    a0n     = 0.05      (/ms)
-    zetan   = -1.5      (1)
-    zetal   = 3         (1)
-    gmn     = 0.55      (1)
-    gml     = 1         (1)
-    lmin    = 2         (mS)
-    nmin    = 0.1       (mS)
-    pw      = -1        (1)
-    tq      = -40
-    qq      = 5
-    q10     = 5
-    qtl     = 1
+    dt (ms)
+    v (mV)
+    ek (mV)              : must be explicitely def. in hoc
+    gkabar=.007 (mho/cm2)
+    vhalfn= 11   (mV)
+    vhalfl=-56   (mV)
+    a0l=0.05      (/ms)
+    a0n=0.05    (/ms)
 }
 
-
 NEURON {
-    SUFFIX kap
-    USEION k READ ek WRITE ik
-    RANGE gbar,g, sh
-:        GLOBAL ninf,linf,taul,taun,lmin
+	SUFFIX kap
+	USEION k READ ek WRITE ik
+    RANGE gkabar,gka
+    GLOBAL ninf,linf,taul,taun
 }
 
 STATE {
-    n
+	n
     l
 }
 
 ASSIGNED {
-    ik      (mA/cm2)
+	ik (mA/cm2)
     ninf
     linf
     taul
     taun
-    g
+    gka
 }
 
 INITIAL {
-    rates(v)
-    n=ninf
-    l=linf
+	rates(v)
+	n=ninf
+	l=linf
+	gka = gkabar*n^4*l
+	ik = gka*(v-ek)
 }
-
 
 BREAKPOINT {
-    SOLVE states METHOD cnexp
-    g = gbar*n*l
-    ik = g*(v-ek)
+	SOLVE states
+	gka = gkabar*n^4*l
+	ik = gka*(v-ek)
 }
-
 
 FUNCTION alpn(v(mV)) {
-    LOCAL zeta
-    zeta=zetan+pw/(1+exp((v-tq-sh)/qq))
-    alpn = exp(1.e-3*zeta*(v-vhalfn-sh)*9.648e4/(8.315*(273.16+celsius)))
+  alpn = -0.01*(v+21.3)/(exp((v+21.3)/-35)-1)
 }
 
+
 FUNCTION betn(v(mV)) {
-    LOCAL zeta
-    zeta=zetan+pw/(1+exp((v-tq-sh)/qq))
-    betn = exp(1.e-3*zeta*gmn*(v-vhalfn-sh)*9.648e4/(8.315*(273.16+celsius)))
+  betn = 0.01*(v+21.3)/(exp((v+21.3)/35)-1)
 }
 
 FUNCTION alpl(v(mV)) {
-    alpl = exp(1.e-3*zetal*(v-vhalfl-sh)*9.648e4/(8.315*(273.16+celsius)))
+  alpl = -0.01*(v+58)/(exp((v+58)/8.2)-1)
 }
 
 FUNCTION betl(v(mV)) {
-    betl = exp(1.e-3*zetal*gml*(v-vhalfl-sh)*9.648e4/(8.315*(273.16+celsius)))
+  betl = 0.01*(v+58)/(exp((v+58)/-8.2)-1)
 }
 
-DERIVATIVE states {     : exact when v held constant; integrates over dt step
+LOCAL facn,facl
+PROCEDURE states() {     : exact when v held constant; integrates over dt step
     rates(v)
-    n' = (ninf - n) / taun
-    l' = (linf - l) / taul
+    n = n + facn*(ninf - n)
+    l = l + facl*(linf - l)
+    VERBATIM
+    return 0;
+    ENDVERBATIM
 }
 
 PROCEDURE rates(v (mV)) { :callable from hoc
-    LOCAL a,qt
-    qt = q10^((celsius-24)/10)
-
+    LOCAL a,b
     a = alpn(v)
-    ninf = 1/(1 + a)
-    taun = betn(v)/(qt*a0n*(1+a))
-    if (taun<nmin) {
-        taun=nmin
-    }
-
+    b = betn(v)
+    ninf = a/(a + b)
+    taun = 0.2
+    facn = (1 - exp(-dt/taun))
     a = alpl(v)
-    linf = 1/(1+ a)
-    taul = 0.26*(v+50-sh)/qtl
-    if (taul<lmin/qtl) {
-        taul=lmin/qtl
+    b = betl(v)
+    linf = a/(a + b)
+    
+    if (v > -20) {
+   taul = 5 + 2.6*(v+20)/10
+    } else {
+   taul = 5
     }
+    facl = (1 - exp(-dt/taul))
 }

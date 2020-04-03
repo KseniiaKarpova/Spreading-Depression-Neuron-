@@ -1,6 +1,6 @@
 TITLE CaGk
-: Calcium activated K channel.
-: Modified from Moczydlowski and Latorre (1983) J. Gen. Physiol. 82
+: Calcium activated mAHP K channel.
+: From Moczydlowski and Latorre (1983) J. Gen. Physiol. 82
 
 UNITS {
 	(molar) = (1/liter)
@@ -12,14 +12,14 @@ UNITS {
 	(mM) =	(millimolar)
 }
 
+INDEPENDENT {t FROM 0 TO 1 WITH 100 (ms)}
 
 NEURON {
-	SUFFIX cagk
+	SUFFIX mykca
 	USEION ca READ cai
 	USEION k READ ek WRITE ik
-	RANGE gbar,gkca,ik
+	RANGE gkbar, ik
 	GLOBAL oinf, tau
-        : RANGE oinf, tau
 }
 
 UNITS {
@@ -28,61 +28,77 @@ UNITS {
 }
 
 PARAMETER {
-	celsius		(degC)
 	v		(mV)
-	gbar=.01	(mho/cm2)	: Maximum Permeability
-	cai 		(mM)
+	dt		(ms)
 	ek		(mV)
-
-	d1 = .84
-	d2 = 1.
-	k1 = .48e-3	(mM)
-	k2 = .13e-6	(mM)
-	abar = .28	(/ms)
-	bbar = .48	(/ms)
-        st=1            (1)
+	celsius = 20	(degC)
+	gkbar = 0.01	(mho/cm2)	: Maximum Permeability
+	cai = 1e-3	(mM)
+	d1 = 0.84
+	d2 = 1.0
+	k1 = 0.18	(mM)
+	k2 = 0.011	(mM)
+	bbar = 0.28	(/ms)
+	abar = 0.48	(/ms)
 }
+COMMENT
+the preceding two numbers were switched on 8/19/92 in response to a bug
+report by Bartlett Mel. In the paper the kinetic scheme is
+C <-> CCa (K1)
+CCa <-> OCa (beta2,alpha2)
+OCa <-> OCa2 (K4)
+In this model abar = beta2 and bbar = alpha2 and K4 comes from d2 and k2
+I was forcing things into a nomenclature where alpha is the rate from
+closed to open. Unfortunately I didn't switch the numbers.
+ENDCOMMENT
 
 ASSIGNED {
 	ik		(mA/cm2)
 	oinf
 	tau		(ms)
-        gkca          (mho/cm2)
-}
-
-INITIAL {
-        rate(v,cai)
-        o=oinf
 }
 
 STATE {	o }		: fraction of open channels
 
 BREAKPOINT {
-	SOLVE state METHOD cnexp
-	gkca = gbar*o^st
-	ik = gkca*(v - ek)
+	SOLVE state
+	ik = gkbar*o*(v - ek) : potassium current induced by this channel
 }
 
-DERIVATIVE state {	: exact when v held constant; integrates over dt step
+LOCAL fac
+
+:if state_cagk is called from hoc, garbage or segmentation violation will
+:result because range variables won't have correct pointer.  This is because
+:only BREAKPOINT sets up the correct pointers to range variables.
+PROCEDURE state() {	: exact when v held constant; integrates over dt step
 	rate(v, cai)
-	o' = (oinf - o)/tau
+	o = o + fac*(oinf - o)
+	VERBATIM
+	return 0;
+	ENDVERBATIM
 }
 
-FUNCTION alp(v (mV), c (mM)) (1/ms) { :callable from hoc
-	alp = c*abar/(c + exp1(k1,d1,v))
+INITIAL {           : initialize the following parameter using rate()
+	rate(v, cai)
+	o = oinf
 }
 
-FUNCTION bet(v (mV), c (mM)) (1/ms) { :callable from hoc
-	bet = bbar/(1 + c/exp1(k2,d2,v))
+FUNCTION alp(v (mV), ca (mM)) (1/ms) { :callable from hoc
+	alp = abar/(1 + exp1(k1,d1,v)/ca)
 }
+
+FUNCTION bet(v (mV), ca (mM)) (1/ms) { :callable from hoc
+	bet = bbar/(1 + ca/exp1(k2,d2,v))
+}  
 
 FUNCTION exp1(k (mM), d, v (mV)) (mM) { :callable from hoc
 	exp1 = k*exp(-2*d*FARADAY*v/R/(273.15 + celsius))
 }
 
-PROCEDURE rate(v (mV), c (mM)) { :callable from hoc
+PROCEDURE rate(v (mV), ca (mM)) { :callable from hoc
 	LOCAL a
-	a = alp(v,c)
-	tau = 1/(a + bet(v, c))
-	oinf = a*tau
+	a = alp(v,ca)
+	tau = 1/(a + bet(v, ca)) : estimation of activation tau
+	oinf = a*tau             : estimation of activation steady state value
+	fac = (1 - exp(-dt/tau))
 }

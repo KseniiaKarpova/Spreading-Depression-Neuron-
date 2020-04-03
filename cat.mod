@@ -1,92 +1,83 @@
-TITLE T-calcium channel
-: T-type calcium channel
-: MODELDB 126814 CA3 by Safiulina et al - http://senselab.med.yale.edu/modeldb/ShowModel.asp?model=126814
-: by Michele Migliore
-
+TITLE t-type calcium channel with high threshold for activation
+: used in somatic and dendritic regions 
+: it calculates I_Ca using channel permeability instead of conductance
 
 UNITS {
-	(mA) = (milliamp)
-	(mV) = (millivolt)
-	(molar) = (1/liter)
-	(mM) = (millimolar)
+    (mA) = (milliamp)
+    (mV) = (millivolt)
 
-	FARADAY = 96520 (coul)
-	R = 8.3134 (joule/degC)
-	KTOMV = .0853 (mV/degC)
+    FARADAY = 96520 (coul)
+    R = 8.3134 (joule/degK)
+    KTOMV = .0853 (mV/degC)
 }
 
-PARAMETER {
-	v (mV)
-	celsius = 25	(degC)
-	gcatbar=.003 (mho/cm2)
-	cai = 50.e-6 (mM)
-	cao = 2 (mM)
-	q10 = 5
-	mmin=0.2
-	hmin=10
-	a0h =0.015
-	zetah = 3.5
-	vhalfh = -75
-	gmh=0.6	
-	a0m =0.04
-	zetam = 2
-	vhalfm = -28
-	gmm=0.1	
-}
+INDEPENDENT {t FROM 0 TO 1 WITH 1 (ms)}
 
+PARAMETER {           
+    :parameters that can be entered when function is called in cell-setup 
+    dt            (ms)
+    v             (mV)
+    tBase = 23.5  (degC)
+    celsius = 22  (degC)
+    gcatbar = 0   (mho/cm2)  : initialized conductance
+    ki = 0.001    (mM)
+    cai = 5.e-5   (mM)       : initial internal Ca++ concentration
+    cao = 2       (mM)       : initial external Ca++ concentration
+    tfa = 1                  : activation time constant scaling factor
+    tfi = 0.68               : inactivation time constant scaling factor
+    eca = 140                : Ca++ reversal potential
+}
 
 NEURON {
 	SUFFIX cat
-	USEION ca READ cai,cao WRITE ica
-        RANGE gcatbar, ica, gcat
-        RANGE hinf,minf,mtau,htau
+	USEION ca READ cai,cao 
+    USEION Ca WRITE iCa VALENCE 2
+    : The T-current does not activate calcium-dependent currents.
+    : The construction with dummy ion Ca prevents the updating of the 
+    : internal calcium concentration. 
+    RANGE gcatbar, hinf, minf, taum, tauh, iCa
 }
 
-STATE {
-	m h 
-}
+STATE {	m h }  : unknown activation and inactivation parameters to be solved in the DEs 
 
-ASSIGNED {
-	ica (mA/cm2)
-        gcat (mho/cm2)
-	hinf
-	htau
-	minf
-	mtau
+ASSIGNED {     : parameters needed to solve DE
+	iCa (mA/cm2)
+    gcat  (mho/cm2) 
+    minf
+    hinf
+    taum
+    tauh
 }
 
 INITIAL {
-	rates(v)
-	m = minf
-	h = hinf
+    : tadj = 3^((celsius-tBase)/10)   : assume Q10 of 3
+    rates(v)
+    m = minf
+    h = hinf
+    gcat = gcatbar*m*m*h*h2(cai)
 }
 
 BREAKPOINT {
-	SOLVE states METHOD cnexp
-	gcat = gcatbar*m*m*h
-	ica = gcat*ghk(v,cai,cao)
+	SOLVE states
+	gcat = gcatbar*m*m*h*h2(cai) : maximum channel permeability
+	iCa = gcat*ghk(v,cai,cao)    : dummy calcium current induced by this channel
 
 }
 
-DERIVATIVE states {	: exact when v held constant
-	rates(v)
-	m' = (minf - m)/mtau
-	h' = (hinf - h)/htau
+UNITSOFF
+FUNCTION h2(cai(mM)) {
+	h2 = ki/(ki+cai)
 }
 
-
-FUNCTION ghk(v(mV), ci(mM), co(mM)) (mV) {
-        LOCAL nu,f
-
-        f = KTF(celsius)/2
-        nu = v/f
-        ghk=-f*(1. - (ci/co)*exp(nu))*efun(nu)
+FUNCTION ghk(v(mV), ci(mM), co(mM)) (mV) { LOCAL nu,f
+    f = KTF(celsius)/2
+    nu = v/f
+    ghk=-f*(1. - (ci/co)*exp(nu))*efun(nu)
 }
 
-FUNCTION KTF(celsius (DegC)) (mV) {
-        KTF = ((25./293.15)*(celsius + 273.15))
+FUNCTION KTF(celsius (degC)) (mV) {   : temperature-dependent adjustment factor
+    KTF = ((25./293.15)*(celsius + 273.15))
 }
-
 
 FUNCTION efun(z) {
 	if (fabs(z) < 1e-4) {
@@ -97,35 +88,48 @@ FUNCTION efun(z) {
 }
 
 FUNCTION alph(v(mV)) {
-  alph = exp(0.0378*zetah*(v-vhalfh)) 
+	TABLE FROM -150 TO 150 WITH 200
+	alph = 1.6e-4*exp(-(v+57)/19)
 }
 
 FUNCTION beth(v(mV)) {
-  beth = exp(0.0378*zetah*gmh*(v-vhalfh)) 
+    TABLE FROM -150 TO 150 WITH 200
+	beth = 1/(exp((-v+15)/10)+1.0)
 }
 
-FUNCTION alpmt(v(mV)) {
-  alpmt = exp(0.0378*zetam*(v-vhalfm)) 
+FUNCTION alpm(v(mV)) {
+	TABLE FROM -150 TO 150 WITH 200
+	alpm = 0.1967*(-1.0*v+19.88)/(exp((-1.0*v+19.88)/10.0)-1.0)
 }
 
-FUNCTION betmt(v(mV)) {
-  betmt = exp(0.0378*zetam*gmm*(v-vhalfm)) 
+FUNCTION betm(v(mV)) {
+	TABLE FROM -150 TO 150 WITH 200
+	betm = 0.046*exp(-v/22.73)
+}
+
+UNITSON
+LOCAL facm,fach
+
+:if state_cagk is called from hoc, garbage or segmentation violation will
+:result because range variables won't have correct pointer.  This is because
+: only BREAKPOINT sets up the correct pointers to range variables.
+PROCEDURE states() {     : exact when v held constant; integrates over dt step
+    rates(v)
+    m = m + facm*(minf - m)
+    h = h + fach*(hinf - h)
+    VERBATIM
+    return 0;
+    ENDVERBATIM
 }
 
 PROCEDURE rates(v (mV)) { :callable from hoc
-	LOCAL a,b, qt
-        qt=q10^((celsius-25)/10)
-
-	a = 0.2*(-1.0*v+19.26)/(exp((-1.0*v+19.26)/10.0)-1.0)
-	b = 0.009*exp(-v/22.03)
-	minf = a/(a+b)
-	mtau = betmt(v)/(qt*a0m*(1+alpmt(v)))
-	if (mtau<mmin) {mtau=mmin}
-
-	a = 1.e-6*exp(-v/16.26)
-	b = 1/(exp((-v+29.79)/10.)+1.)
-	hinf = a/(a+b)
-	htau = beth(v)/(qt*a0h*(1+alph(v)))
-	if (htau<hmin) {htau=hmin}
+    LOCAL a
+    a = alpm(v)
+    taum = 1/(tfa*(a + betm(v))) : estimation of activation tau
+    minf =  a/(a+betm(v))        : estimation of activation steady state
+    facm = (1 - exp(-dt/taum))
+    a = alph(v)
+    tauh = 1/(tfi*(a + beth(v))) : estimation of inactivation tau
+    hinf = a/(a+beth(v))         : estimation of inactivation steady state
+    fach = (1 - exp(-dt/tauh))
 }
-
