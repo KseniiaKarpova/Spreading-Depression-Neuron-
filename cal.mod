@@ -1,111 +1,67 @@
-TITLE L-type calcium channel with low threshold for activation
-: used in somatic and proximal dendritic regions 
-: it calculates I_Ca using channel permeability instead of conductance
+TITLE Calcium high-threshold L type current for RD Traub, J Neurophysiol 89:909-921, 2003
 
-UNITS {
-	(mA) = (milliamp)
-	(mV) = (millivolt)
-	FARADAY = 96520 (coul)
-	R = 8.3134 (joule/degK)
-	KTOMV = .0853 (mV/degC)
+COMMENT
+
+	Implemented by Maciej Lazarewicz 2003 (mlazarew@seas.upenn.edu)
+ENDCOMMENT
+
+INDEPENDENT { t FROM 0 TO 1 WITH 1 (ms) }
+
+UNITS { 
+	(mV) = (millivolt) 
+	(mA) = (milliamp) 
+}
+ 
+NEURON { 
+	SUFFIX cal
+	USEION ca WRITE ica
+	RANGE gbar, ica
+	RANGE alpha, beta : added to write rates for comparison with F
 }
 
-INDEPENDENT {t FROM 0 TO 1 WITH 1 (ms)}
-
-PARAMETER {		:parameters that can be entered when function is called in cell-setup 
-    dt              (ms)
-	v               (mV)
-	celsius = 34	(degC)
-	gcalbar = 0     (mho/cm2) : initialized conductance
-	ki  = 0.001     (mM)  
-	cai = 5.e-5     (mM)      : initial internal Ca++ concentration
-	cao = 2         (mM)      : initial external Ca++ concentration
-    tfa = 5                   : time constant scaling factor
-    eca = 140                 : Ca++ reversal potential
+PARAMETER { 
+	gbar = 0.0 	(mho/cm2)
+	v  		(mV)  
+}
+ 
+ASSIGNED { 
+	ica 		(mA/cm2) 
+	alpha (/ms) beta	(/ms)
+}
+ 
+STATE {
+	m
 }
 
-NEURON {
-    SUFFIX cal
-    USEION ca READ cai,cao WRITE ica
-    RANGE gcalbar, minf,taum
+BREAKPOINT { 
+	SOLVE states METHOD cnexp
+	ica = gbar * m * m * ( v - 125 ) 
+}
+ 
+INITIAL { 
+	settables(v) 
+	m = alpha / ( alpha + beta )
+	m = 0
+}
+ 
+DERIVATIVE states { 
+	settables(v) 
+	m' = alpha * ( 1 - m ) - beta * m 
 }
 
-STATE {	m }                      : unknown parameter to be solved in the DEs 
+UNITSOFF 
 
-ASSIGNED {                       : parameters needed to solve DE
-    ica (mA/cm2)
-    gcal  (mho/cm2) 
-    minf
-    taum
-}
+PROCEDURE settables(v (mV)) { LOCAL tmp
+	TABLE alpha, beta FROM -120 TO 40 WITH 641
 
-INITIAL {                        : initialize the following parameter using rates()
-    rates(v)
-    m = minf
-    gcal = gcalbar*m*h2(cai)
-}
+	alpha = 1.6 / ( 1 + exp( - 0.072 * ( v - 5 ) ) )
 
-BREAKPOINT {
-	SOLVE states
-	gcal = gcalbar*m*h2(cai) : maximum channel permeability
-	ica = gcal*ghk(v,cai,cao): calcium current induced by this channel
-}
-
-UNITSOFF
-FUNCTION h2(cai(mM)) {
-	h2 = ki/(ki+cai)
-}
-
-FUNCTION ghk(v(mV), ci(mM), co(mM)) (mV) {
-    LOCAL nu,f
-    f = KTF(celsius)/2
-    nu = v/f
-    ghk=-f*(1. - (ci/co)*exp(nu))*efun(nu)
-}
-
-FUNCTION KTF(celsius (degC)) (mV) { : temperature-dependent adjustment factor
-    KTF = ((25./293.15)*(celsius + 273.15))
-}
-
-FUNCTION efun(z) {
-	if (fabs(z) < 1e-4) {
-		efun = 1 - z/2
-	} else {
-		efun = z/(exp(z) - 1)
+	tmp = v + 8.9
+	if ( fabs( tmp ) < 1e-6 ) {
+		beta  = 0.1 * exp( - tmp / 5 ) 
+	}else{
+		beta  = 0.02 * tmp / ( exp( tmp / 5 ) - 1 )
 	}
 }
 
-FUNCTION alpm(v(mV)) {
-	TABLE FROM -150 TO 150 WITH 200
-	alpm = 0.055*(-27.01 - v)/(exp((-27.01-v)/3.8) - 1)
-}
-
-
-FUNCTION betm(v(mV)) {
-    TABLE FROM -150 TO 150 WITH 200
-    betm =0.94*exp((-63.01-v)/17)
-}
-
 UNITSON
-LOCAL facm
-:if state_cagk is called from hoc, garbage or segmentation violation will
-:result because range variables won't have correct pointer.  This is because
-:only BREAKPOINT sets up the correct pointers to range variables.
-PROCEDURE states() {     : exact when v held constant; integrates over dt step
-    rates(v)
-    m = m + facm*(minf - m)
-    VERBATIM
-    return 0;
-    ENDVERBATIM
-}
-
-PROCEDURE rates(v (mV)) { :callable from hoc
-    LOCAL a
-    a = alpm(v)
-    taum = 1/(tfa*(a+betm(v))) : estimation of activation tau
-    minf = a/(a+betm(v))       : estimation of activation steady state value
-    facm = (1 - exp(-dt/taum))
-}
-
-
-
